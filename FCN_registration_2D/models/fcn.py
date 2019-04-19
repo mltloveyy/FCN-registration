@@ -5,9 +5,10 @@ from FCN_registration_2D.models.utils import ncc, save_image_with_scale, grad
 import os
 
 class FCN(object):
-    def __init__(self, name: str, is_train: bool):
+    def __init__(self, name: str, is_train: bool, batch_size: int):
         self._name = name
         self._is_train = is_train
+        self._batch_size = batch_size
         self._reuse = None
 
     def __call__(self, x):
@@ -17,9 +18,9 @@ class FCN(object):
             x_3 = conv2d(x_2, 'Conv2', 64, 3, 2, 'SAME', True, tf.nn.relu, self._is_train)
             x_4 = tf.nn.avg_pool(x_3, [1, 3, 3, 1], [1, 2, 2, 1], 'SAME', name='pooling2')
             x_5 = conv2d(x_4, 'Conv3', 128, 3, 2, 'SAME', True, tf.nn.relu, self._is_train)
-            x_6 = conv2d_transpose(x_5, 'deconv1', 64, [10, 8, 8, 64], 3, 2, 'SAME', True, tf.nn.relu, self._is_train)
+            x_6 = conv2d_transpose(x_5, 'deconv1', 64, [self._batch_size, tf.shape(x_5)[1]*2, tf.shape(x_5)[2]*2, 64], 3, 2, 'SAME', True, tf.nn.relu, self._is_train)
             x_7 = conv2d(x_6, 'Conv4', 64, 3, 2, 'SAME', True, tf.nn.relu, self._is_train)
-            x_8 = conv2d_transpose(x_7, 'deconv2', 32, [10, 8, 8, 32], 3, 2, 'SAME', True, tf.nn.relu, self._is_train)
+            x_8 = conv2d_transpose(x_7, 'deconv2', 32, [self._batch_size, tf.shape(x_7)[1]*2, tf.shape(x_7)[2]*2, 32], 3, 2, 'SAME', True, tf.nn.relu, self._is_train)
             # todo: change batch_size for conv2d_transpose output_shape x_6,x_8
             # x_9,x_10,x_11 as regression layer, corresponding Reg1,Reg2 and Reg3 respectively
             x_9 = reg(x_8, 'Reg1', 2, 3, 1, 'SAME', self._is_train)
@@ -50,7 +51,7 @@ class fcnRegressor(object):
         xy = tf.concat([self.x, self.y], axis=3)    # [batch_size, img_height, img_width, 2]
 
         # construct Spatial Transformers
-        self._fcn = FCN('FCN', is_train=_is_train)
+        self._fcn = FCN('FCN', is_train=_is_train, batch_size=_batch_size)
         fcn_out = self._fcn(xy)
         # todo: remove it
         self._v1 = fcn_out[0]
@@ -85,8 +86,8 @@ class fcnRegressor(object):
         )
         return loss, loss1, loss2, loss3, loss4, loss5, loss6
 
-    def deploy(self, dir_path, x, y, img_start_idx=0):
-        # ca
+    def deploy(self, dir_path, batch_size, j, epoch, x, y, img_start_idx=0):
+
         z1, z2, z3 = self._sess.run([self._z1, self._z2, self._z3], feed_dict={self.x: x, self.y: y})
         loss, loss_1, loss_2, loss_3, loss_4, loss_5, loss_6 = self._sess.run([self.loss, self.loss1, self.loss2, self.loss3, self.loss4, self.loss5, self.loss6],
                                                       feed_dict={self.x: x, self.y: y})
@@ -95,16 +96,16 @@ class fcnRegressor(object):
         else:
             # save image
             for i in range(z1.shape[0]):
-                _idx = img_start_idx + i + 1
-                save_image_with_scale(dir_path + '/{:>02d}_x.png'.format(_idx), x[i, :, :, 0])
-                save_image_with_scale(dir_path + '/{:>02d}_y.png'.format(_idx), y[i, :, :, 0])
-                save_image_with_scale(dir_path + '/{:>02d}_z1.png'.format(_idx), z1[i, :, :, 0])
-                save_image_with_scale(dir_path + '/{:>02d}_z2.png'.format(_idx), z2[i, :, :, 0])
-                save_image_with_scale(dir_path + '/{:>02d}_z3.png'.format(_idx), z3[i, :, :, 0])
+                _idx = img_start_idx + i + 1 + j * batch_size
+                save_image_with_scale(dir_path + '/{}_{:>02d}_x.png'.format(epoch + 1, _idx), x[i, :, :, 0])
+                save_image_with_scale(dir_path + '/{}_{:>02d}_y.png'.format(epoch + 1, _idx), y[i, :, :, 0])
+                save_image_with_scale(dir_path + '/{}_{:>02d}_z1.png'.format(epoch + 1, _idx), z1[i, :, :, 0])
+                save_image_with_scale(dir_path + '/{}_{:>02d}_z2.png'.format(epoch + 1, _idx), z2[i, :, :, 0])
+                save_image_with_scale(dir_path + '/{}_{:>02d}_z3.png'.format(epoch + 1, _idx), z3[i, :, :, 0])
             return loss, loss_1, loss_2, loss_3
 
     def save(self, sess, save_folder: str):
-        self._fcn.save(sess, os.path.join(save_folder, 'FCN.ckpt'))
+        self._fcn.save(sess, os.path.join(save_folder, 'FCN_{}.ckpt'.format(epoch)))
 
     def restore(self, sess, save_folder: str):
         self._fcn.restore(sess, os.path.join(save_folder, 'FCN.ckpt'))
