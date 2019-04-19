@@ -6,6 +6,7 @@ from FCN_registration_2D.trainNet.logger import my_logger as logger
 
 
 def train():
+    root_dir = "/home/YY/Documents/data/"
     config = config_folder_guard({
         # train_parameters
         'image_size': [128, 128],
@@ -15,30 +16,30 @@ def train():
         'save_interval': 2,
         'shuffle_batch': True,
         # trainNet data folder
-        'checkpoint_dir': r'E:\training data\running data\checkpoints',
-        'temp_dir': r'E:\training data\running data\validate',
-        'log_dir': r'E:\training data\running data\log'
+        'checkpoint_dir': root_dir + "checkpoints",
+        'temp_dir': root_dir + "validate",
+        'log_dir': root_dir + "log"
     })
 
     #定义验证集和训练集
-    train_x_dir = r'E:\training data\pet_ct_registration\normolized_pt_train'
-    train_y_dir = r'E:\training data\pet_ct_registration\resized_ct_train'
+    train_x_dir = root_dir + "normolized_train"
+    train_y_dir = root_dir + "resized_train"
     batch_x, batch_y = gen_batches(train_x_dir, train_y_dir, {
         'batch_size': config['batch_size'],
         'image_size': config['image_size'],
         'shuffle_batch': config['shuffle_batch']
     })
-    valid_x_dir = r'E:\training data\pet_ct_registration\normolized_pt_validate'
-    valid_y_dir = r'E:\training data\pet_ct_registration\resized_ct_validate'
+    valid_x_dir = root_dir + "normolized_validate"
+    valid_y_dir = root_dir + "resized_validate"
     valid_x, valid_y = gen_batches(valid_x_dir, valid_y_dir, {
         'batch_size': config['batch_size'],
         'image_size': config['image_size'],
         'shuffle_batch': config['shuffle_batch']
     })
-    # config['train_iter_num'] = len(os.listdir(train_x_dir)) // config["batch_size"]
-    # config['valid_iter_num'] = len(os.listdir(valid_x_dir)) // config['batch_size']
-    config['train_iter_num'] = 200
-    config['valid_iter_num'] = 20
+    config['train_iter_num'] = len(os.listdir(train_x_dir)) // config["batch_size"]
+    config['valid_iter_num'] = len(os.listdir(valid_x_dir)) // config['batch_size']
+#     config['train_iter_num'] = 200
+#     config['valid_iter_num'] = 20
 
     #定义日志记录器
     train_log = logger(config['log_dir'], 'train.log')
@@ -78,7 +79,7 @@ def train():
         _valid_L3 = []
         for j in range(config['valid_iter_num']):
             _valid_x, _valid_y = sess.run([valid_x, valid_y])
-            _loss_valid = reg.deploy(None, _valid_x, _valid_y)
+            _loss_valid = reg.deploy(None, config['batch_size'], j, epoch, _valid_x, _valid_y)
             _valid_L.append(_loss_valid[0])
             _valid_L1.append(_loss_valid[1])
             _valid_L2.append(_loss_valid[2])
@@ -91,8 +92,8 @@ def train():
 
         if(epoch + 1) % config['save_interval'] == 0:
             _valid_x, _valid_y = sess.run([valid_x, valid_y])
-            reg.deploy(config['temp_dir'], _valid_x, _valid_y)
-            reg.save(sess, config['checkpoint_dir'])
+            reg.deploy(config['temp_dir'], config['batch_size'], j, epoch, _valid_x, _valid_y)
+            reg.save(sess, epoch, config['checkpoint_dir'])
 
     coord.request_stop()
     coord.join(threads)
