@@ -53,14 +53,32 @@ def batch_norm(x, name, momentum=0.9, epsilon=1e-5, is_train=True):
 
 
 def ncc(x, y):
-    mean_x = tf.reduce_mean(x, [1, 2, 3], keepdims=True)
-    mean_y = tf.reduce_mean(y, [1, 2, 3], keepdims=True)
-    mean_x2 = tf.reduce_mean(tf.square(x), [1, 2, 3], keepdims=True)
-    mean_y2 = tf.reduce_mean(tf.square(y), [1, 2, 3], keepdims=True)
-    stddev_x = tf.reduce_sum(tf.sqrt(mean_x2 - tf.square(mean_x)), [1, 2, 3], keepdims=True)
-    stddev_y = tf.reduce_sum(tf.sqrt(mean_y2 - tf.square(mean_y)), [1, 2, 3], keepdims=True)
+    mean_x = tf.reduce_mean(x, [1, 2, 3], keep_dims=True)
+    mean_y = tf.reduce_mean(y, [1, 2, 3], keep_dims=True)
+    mean_x2 = tf.reduce_mean(tf.square(x), [1, 2, 3], keep_dims=True)
+    mean_y2 = tf.reduce_mean(tf.square(y), [1, 2, 3], keep_dims=True)
+    stddev_x = tf.reduce_sum(tf.sqrt(mean_x2 - tf.square(mean_x)), [1, 2, 3], keep_dims=True)
+    stddev_y = tf.reduce_sum(tf.sqrt(mean_y2 - tf.square(mean_y)), [1, 2, 3], keep_dims=True)
     return tf.reduce_mean((x - mean_x) * (y - mean_y) / (stddev_x * stddev_y))
 
+def dice(x, y):
+    """Define the dice coefficient
+        Args:
+        x: Ground truth Label
+        y: Prediction
+        Returns:
+        Dice coefficient
+        """
+    x_f = tf.cast(tf.reshape(x, [-1]), tf.float32)
+    y_f = tf.nn.sigmoid(y)
+    y_f = tf.cast(tf.greater(y_f, 0.5), tf.float32)
+    y_f = tf.cast(tf.reshape(y_f, [-1]), tf.float32)
+    intersection = tf.reduce_sum(x_f * y_f)
+    union = tf.reduce_sum(x_f) + tf.reduce_sum(y_f)
+    dice = (2. * intersection) / (union + 0.00001)
+    if (tf.reduce_sum(y) == 0) and (tf.reduce_sum(x) == 0):
+        dice = 1
+    return dice
 
 def mse(x, y):
     return tf.reduce_mean(tf.square(x - y))
